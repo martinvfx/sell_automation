@@ -1,0 +1,20 @@
+
+## NOTAS: usar classes para todas las tareas comunes como login, rellenado de campos, etc
+
+    # buscar los archivos de la carpeta de salida  "para vender"
+    # identificar que tipo de archivo vendo ( si es foto, video, ilustracion )
+# TO-DO: armar la lista de sitios de ventas y sus datos de usuario (json file)
+    # Chequear login
+    #  armar FTP
+# TO-DO: subir por FTP o web ( dependiendo el tipo de archivo ) los que estén en carpeta de venta && no estén ya marcados en la planilla.
+    # TO-DO: logearme en google spreadsheets
+# TO-DO: comprobar en la planilla que el archivo a subir no se haya subido ya manualmente.
+# TO-DO: anotar una nueva linea en spreadsheets con el nombre de archivo, tipo, marcar sitios a los que está subiendose.
+# TO-DO: comprobar la subida ( completada en ftp, o por el sitio )
+# TO-DO: revisar si el sitio lo tiene registrado en pendientes de editar o rechazado por problemas de subida o archivo. Y marcar en spreadsheets.
+# TO-DO: Si en sitio está pendiente de editar: identificar y rellenar los campos nombre, descripcion, tags, etc.
+# TO-DO: Publicar automaticamente o marcar como pendiente de publicar en nuestra lista
+# TO-DO: Comprobar si fue publicado o rechazado y marcar en spreadsheets
+# TO-DO: si hay rechazados en spreadsheets: mover a revison/cambio/reformateos una vez que se haya subido a todos los sitos.
+# TO-DO: una vez subido y publicado en todos los sitos: mover a otra carpeta "ya publicados"
+# TO-DO: Hacer un archivo login historico de los movimientos de achivos.
