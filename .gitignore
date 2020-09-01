@@ -1,4 +1,5 @@
-venv
+
+/venv/
 .gitignore
 *.mov
 my_sites_info.json
