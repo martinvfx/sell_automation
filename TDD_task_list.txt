@@ -3,13 +3,19 @@
 
     # buscar los archivos de la carpeta de salida  "para vender"
     # identificar que tipo de archivo vendo ( si es foto, video, ilustracion )
-# TO-DO: armar la lista de sitios de ventas y sus datos de usuario (json file)
+    # diferenciar los grupos de tomas o colecciones, o asset 3D que formen una misma unidad por carpetas que estén dentro de HD, 4K, 3D ...
+    # TO-DO: anotar en planilla las colecciones y entre parentesis los archivos. No los archivos individualmente.
+    #  armar la lista de sitios de ventas y sus datos de usuario (json file)
     # Chequear login
     #  armar FTP
+    #  preguntar a que sitios subir.
 # TO-DO: subir por FTP o web ( dependiendo el tipo de archivo ) los que estén en carpeta de venta && no estén ya marcados en la planilla.
-    # TO-DO: logearme en google spreadsheets
-# TO-DO: comprobar en la planilla que el archivo a subir no se haya subido ya manualmente.
-# TO-DO: anotar una nueva linea en spreadsheets con el nombre de archivo, tipo, marcar sitios a los que está subiendose.
+    #  logearme en google spreadsheets
+    #  comprobar en la planilla que el archivo a subir no se haya subido ya manualmente.
+    # anotar una nueva linea en spreadsheets con el nombre de archivo y tipo que está subiendose.
+# TO-DO: extraer imagen de muestra o thumbnail de video.
+# TO-DO: subir a spreadsheet imagen de muestra o thumbnail de video.
+# TO-DO: en spreadsheets  marcar sitios a los que está subiendose.
 # TO-DO: comprobar la subida ( completada en ftp, o por el sitio )
 # TO-DO: revisar si el sitio lo tiene registrado en pendientes de editar o rechazado por problemas de subida o archivo. Y marcar en spreadsheets.
 # TO-DO: Si en sitio está pendiente de editar: identificar y rellenar los campos nombre, descripcion, tags, etc.

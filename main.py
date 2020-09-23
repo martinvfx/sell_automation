@@ -1,12 +1,9 @@
+import shutil, datetime, re
+from pandas import DataFrame as df
 from selenium import webdriver
 import logging
-import os, sys, json, ftplib
-
-import pickle
+import os, sys, json, ftplib, gspread
 import os.path
-from googleapiclient.discovery import build
-from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -16,6 +13,8 @@ acepted_photos_filetypes =  [ type.lower() for type in ['jpg', 'PNG', 'tiff' ]]
 acepted_illustrations_filetypes =  [ type.lower() for type in['AI', 'EPS', 'SVG' ]]
 acepted_3D_filetypes = [ type.lower() for type in ['MA', 'MB', '3DS', 'MAX', 'C4D', 'BLEND' , 'XSI', 'LWO', 'OBJ', 'FBX', 'DAE']]
 list_of_acepted_filetypes = acepted_video_filetypes + acepted_photos_filetypes + acepted_illustrations_filetypes + acepted_3D_filetypes
+
+config_path = os.path.normpath(r"C:\Users\Tato\PycharmProjects\autoSell_Images\config")
 
 
 class Setup_driver():
@@ -29,25 +28,33 @@ class Setup_driver():
 
 class Sell_folder():
     def __init__(self, sellfolder_path):
-        # self.sellfolder = input('where is the sell folder?') if "" else 'C:\TRABAJOS\Venta_stockfootage\_x_Vender'
-        self.sellfolder = sellfolder_path
+    #     # self.sellfolder = str(os.path.normpath(input('where is the sell folder? \n') or r'C:\TRABAJOS\Venta_stockfootage\_x_Vender'))
+        self.sellfolder = str(os.path.normpath(sellfolder_path))
 
-    ## buscar los archivos de la carpeta de salida  "para vender"
     def get_items_list(self):
-        items_lists = []
-        # List all files in a directory
-        with os.scandir(self.sellfolder) as folder:
-            if folder is not None:
-                for file in folder:
-                    if file.is_file():
-                        items_lists.append(file.name)
-                        # logging.info(items_lists)
-            else:
-                logging.info('No files in this folder')
-        return items_lists
+        ## buscar los archivos de la carpeta de salida  "para vender" and in the inner subfolders.
+        # self.sellfolder = str(os.path.normpath(input('where is the sell folder? \n') or r'C:\TRABAJOS\Venta_stockfootage\_x_Vender'))
+        # self.sellfolder = str(os.path.normpath(sellfolder_path))
+        items_in_folders = []
+        def recursive_scan_folders(folder):
+            with os.scandir(folder) as folder:
+                if folder is not None:
+                    for content in folder:
+                        if content.is_file():
+                            items_in_folders.append(content.name)
+                        elif content.is_dir():
+                            # print(content.name)
+                            yield from  recursive_scan_folders(content.path)
+                else:
+                    logging.info('No files or foldes in this path')
 
-    ## Check if all files in upload or sell folder are valid types.
+        for i in recursive_scan_folders(self.sellfolder):
+            next(recursive_scan_folders(i.path))
+
+        return items_in_folders
+
     def check_acepted_filestype(self, items_list):
+        ## Check if all files in upload or sell folder are valid types.
         files_types_found = []
         logging.debug(items_list)
         for file in items_list:
@@ -59,10 +66,25 @@ class Sell_folder():
         return all(i in list_of_acepted_filetypes for i in files_types_found)
 
 
-    # identificar que tipo de archivo tengo ( si es foto, video, ilustracion )
-    # clasificar por tipo de archivo para marcar al subir.
+    def type_file(self, filename):
+        # identificar que tipo de archivo tengo ( si es foto, video, ilustracion )
+        extension_file = os.path.split(filename)[1].rsplit('.')[1].lower()
+        if extension_file in acepted_video_filetypes:
+            # video_type[filename] = 'video'
+            file_type = 'video'
+        if extension_file in acepted_photos_filetypes:
+            file_type = 'Foto'
+        if extension_file in acepted_illustrations_filetypes:
+            file_type = 'illustration'
+        if extension_file in acepted_3D_filetypes:
+            file_type = '3D'
+        if extension_file not in list_of_acepted_filetypes:
+            file_type = 'other'
+        ## this return the type of file.
+        return file_type
+
     def files_types_clasificator(self, file_list):
-        # items_list = self.get_items_list()
+        # clasificar por tipo de archivo para marcar al subir.
         video_type = {}
         photo_type = {}
         illustration_type = {}
@@ -70,22 +92,42 @@ class Sell_folder():
         other_type = {}
         for file in file_list:
             extension_file = os.path.split(file)[1].rsplit('.')[1].lower()
-            if extension_file in acepted_video_filetypes:
+            if self.type_file(file) == 'video':
                 video_type[file] = 'video'
-            if extension_file in acepted_photos_filetypes:
+            if self.type_file(file) == 'Foto':
                 photo_type[file] = 'Foto'
-            if extension_file in acepted_illustrations_filetypes:
+            if self.type_file(file) == 'illustration':
                 illustration_type[file] = 'illustration'
-            if extension_file in acepted_3D_filetypes:
+            if self.type_file(file) == '3D':
                 treeD_type[file] = '3D'
-            if extension_file not in list_of_acepted_filetypes:
+            if self.type_file(file) == 'other':
                 other_type[file] = 'other'
             ## this return dict of every type.
         return video_type, photo_type, illustration_type, treeD_type, other_type
 
-class Sell_sites():
-    # TO-DO: armar la lista de sitios de ventas y sus datos de usuario
+    def in_collection_subfolder(self):
+        ## find collections: they are sub folders with more than 2 files located into 4K, HD, 3D main folders. Photos are not taken as possible collection type.
+        container_collections = ["3D", "4K", "HD"]
+        collections = {}
+        for category in container_collections:
+            with os.scandir(os.path.join(self.sellfolder, category)) as sellfolder_toplevel:
+                for sub_folder in sellfolder_toplevel:
+                    if sub_folder.is_dir() and len(os.listdir(sub_folder)) >= 2:
+                        # print(type(sub_folder), sub_folder.name +"\t"+ category)
+                        for file in os.scandir(sub_folder):
+                            if file.is_file():
+                                # print(f'file es {file.name} en coleccion {sub_folder.name}')
+                                if sub_folder.name in collections:
+                                    collections[sub_folder.name].append(file.name)
+                                else:
+                                    collections[sub_folder.name] = [file.name]
+        return collections
+
+
+class Upload_to_sites():
+    # lista de sitios de ventas y sus datos
     def __init__(self, site):# , user, passw):
+        self.site_name = site
         ## archivo externo con datos de usuario de todos los sitios.
         with  open(os.path.join(os.path.dirname(__file__), 'my_sites_info.json'),  'r') as siteskeys:
             siteskeys = json.load(siteskeys)[site]
@@ -94,17 +136,6 @@ class Sell_sites():
             self.site_url = siteskeys['site']
             self.user = siteskeys['user']
             self.passw = siteskeys['passw']
-
-
-    # def sites_info_file(self, site_url):
-    #     sites_dict = {'pond5': 'ftp.pond5.com'}
-    #     ## archivo externo con datos de usuario de todos los sitios.
-    #     with  open('my_sites_info.json',  'r') as siteskeys:
-    #         # logging.debug(siteskeys.readlines())
-    #         logging.debug(json.loads(siteskeys[site_url]))
-    #         return json.loads(siteskeys[site_url])
-
-
 
     def login_ftp(self):
         logging.info(f"\nsigin into {self.site_url} with {self.user} username.") # just for test.
@@ -172,62 +203,192 @@ class Sell_sites():
 
 class Control_sheet():
     def __init__(self, sheet_id, sheet_name):
+        logging.getLogger("urllib3").setLevel(logging.WARNING)
+        logging.getLogger("google.auth.transport.requests").setLevel(logging.WARNING)
+
+        current_path = os.path.normpath(os.path.dirname(__file__))
+        self.credentials_file = os.path.normpath(os.path.join(os.path.dirname(__file__), 'config/credentials.json'))
+        token_file = os.path.normpath( os.path.join(current_path, 'config/token.pickle'))
+
+        # check if credentials file are in the right place.
+        cred_in_appdata = os.path.normpath(os.path.join(os.getenv('APPDATA'), "gspread/credentials.json"))
+        if not os.path.isfile(cred_in_appdata):
+            try:
+                promp_path = input() or "Put the full path to file: credentials.json"
+                self.credentials_file = os.path.normpath(os.path.join(promp_path, "credentials.json"))
+                shutil.move(self.credentials_file, cred_in_appdata)
+                logging.info(f"I can't fund credentials file in %APPDATA/gspread/% folder\nCredentials was moved to: {cred_in_appdata}")
+            except:
+                logging.info(Exception)
+
         self.sheet_id = sheet_id ## 1B2u8ahbrHLsARSwDU3DC3nik_rrnlO5K1nsBFx2HZ3o
         self.sheet_name = sheet_name
 
-        current_path = os.path.normpath(os.path.dirname(__file__))
-        credentials_file = os.path.normpath(os.path.join(os.path.dirname(__file__), 'config/credentials.json'))
-        token_file =os.path.normpath( os.path.join(current_path, 'config/token.pickle'))
-        print(token_file)
-        # print(credentials_file)
+        self.gs = gspread.oauth()
+        self.sh = self.gs.open_by_key(self.sheet_id)
+        self.worksheet = self.sh.worksheet(self.sheet_name)
+        self.all_ws_data = self.worksheet.get_all_values()
+        # self.ws_as_df = df( self.worksheet.get_all_records())
 
-        # If modifying these scopes, delete the file token.pickle.
-        SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
+    def select_what_sites(self):
+        # extraer lista sitios y preguntar a que sitios subir.
+        # La funcion debe fijarse que sitios tengo anotados en planilla, comprobar en el json, y preguntarme si elegir todos o quitar alguno.
+        # sites_on_sheet = self.worksheet.get_all_records()
+        col_tipos = self.worksheet.find(r"video / foto / 3D ").col
+        col_title = self.worksheet.find(r"Titulo").col
+        # lista de columnas con sitios de venta.
+        nl = '\n'
+        head_sites = self.worksheet.get(f'{str(chr(65+col_tipos))+"1"}:{str(chr(64+col_title-1))+"1"}')[0]
+        head_sites = [i.strip() for i in head_sites] ## for trim the white spaces around.
+        head_sites = (dict(zip(range(0, len(head_sites)) ,head_sites)))
+        print(f"sites to sell are: {nl} {head_sites}".replace(',', nl), sep=nl)
+        def saved_opt(mode, sel={}):
+            ## That's for save selections in a file and read them as default option, to avoid re-ask every time to use.
+            if mode is "read":
+                with open(os.path.join(config_path, 'preferences.json')) as pref_file:
+                    data = json.load(pref_file)['last_selected_to_upload']
+                    # logging.info((", ".join(l for l in data[0].values())))
+                    return data
+            elif mode is "write":
+                save_selection = {'last_selected_to_upload': [sel]}
+                rw = 'w'
+                with open(os.path.join(config_path, 'preferences.json'), rw) as pref_file:
+                    json.dump(save_selection, pref_file, indent=4)
 
-        # The ID of spreadsheet.
-        self.SPREADSHEET_ID = self.sheet_id
+        select_menu = {"1":"All registred sell sites", "2":"Deselect some to discard in the upload", "3":"Use last used selection  (default)"}
+        ask = False
+        try:
+            while ask == False:
+                ask_sites = input(f"{'---'*8}\nPlease select the sites to upload: \n{str(select_menu).replace(',', nl)}\n\npress '1' key: If you want to use all sell site.\npress '2' key: If you want to deselect any sell site."
+                                  f"\npress ENTER: If you want to upload to last selected sell sites.\nYour chose? = ") or "3"
+                if ask_sites == "1":
+                    # TO-DO check if all sites in spreadsheet as registred in json config.
+                    print(select_menu[ask_sites], nl)
+                    print(f"\nYou chosed all of sites: {', '.join(str(x) for x in head_sites.values())} to upload the files.")
+                    ask = True
+                    return head_sites
+                elif ask_sites == "2":
+                    print(select_menu[ask_sites], nl)
+                    print(f"sites to sell are: {nl} {', '.join(str(x) for x in head_sites.items())}".replace(',', nl), sep=nl)
+                    deselection = [int(i) for i in input("NOT do upload to these sites numbers\n(enter one or more numbers separated by commas) \nDeselect: ").split(',')] or []
+                    print(f"\nThese sites will be no taken in account for next upload: {', '.join(head_sites[n] for n  in deselection)}")
+                    head_sites = {k:head_sites[k] for k in head_sites if k not in deselection}
+                    print(f"\nYou chosed {', '.join(str(x) for x in head_sites.values())} to upload the files.")
+                    saved_opt("write", sel=head_sites) # I save the selected sites in a file.
+                    ask = True
+                    return head_sites
+                elif ask_sites == "3":
+                    # Read the preference file to avoid ask for selected sites again.
+                    last_time_selected = saved_opt("read")
+                    print(select_menu[ask_sites], nl)
+                    print(f"\nYou chosed {', '.join(str(x) for x in last_time_selected[0].values())} to upload the files.")
+                    logging.info(f'{nl}los sitios guardados son : {nl}{last_time_selected}')
+                    ask = True
+                    return last_time_selected
+                else:
+                    clear = lambda : os.system('cls' if os.name=='nt' else 'clear')
+                    clear()
+                    print("\n" * 55, "\nSorry , I can't stand your choice.", "\n"*3)
+                    ask = False
+        except:
+            logging.debug(Exception)
 
-        creds = None
-        # The file token.pickle stores the user's access and refresh tokens, and is
-        # created automatically when the authorization flow completes for the first
-        # time.
-        if os.path.exists(token_file):
-            with open(token_file, 'rb') as token:
-                creds = pickle.load(token)
-        # If there are no (valid) credentials available, let the user log in.
-        if not creds or not creds.valid:
-            if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
-                flow = InstalledAppFlow.from_client_secrets_file(credentials_file, SCOPES)
-                creds = flow.run_local_server(port=0)
-            # Save the credentials for the next run
-            with open(token_file, 'wb') as token:
-                pickle.dump(creds, token)
 
-        self.service = build('sheets', 'v4', credentials=creds)
 
-    def list_rows(self, range):
+    def list_values_on_range(self, range):
+        # values_list = worksheet.col_values(1)
+        values_list = self.worksheet.get(range)
+        # print(f' valores de col 1 =\n{values_list}')
+        return values_list
 
-        self.SHEET_NAME_RANGE = f'{self.sheet_name}!{range}'  # A2:E
-
-        # Call the Sheets API
-        sheet = self.service.spreadsheets()
-        result = sheet.values().get(spreadsheetId=self.SPREADSHEET_ID,
-                                    range=self.SHEET_NAME_RANGE).execute()
-        values = result.get('values', [])
-
-        if not values:
-            print('No data found.')
+    def check_registred_file(self, file_name):
+        # comprobar en la planilla que el archivo a subir no se haya subido ya anteriormente o manualmente.
+        rec_names = self.worksheet.col_values(ord("D")-64)
+        ## I use pandas to check rows
+        # logging.debug(df(rec_names, columns=['Names of registred uploads']).shift(1))             # TO-FIX no está listando hasta el ultimo nombre de la columna D
+        if any(file_name in f for f in rec_names):
+            return self.worksheet.find(re.compile(rf'{file_name}')).row  ## return position row
         else:
-            print('archivo \t tipo  \t estado \n -----------------------')
-            for col in values:
-                # Print columns A and E, which correspond to indices 0 and 4.
-                print(f'{col[0]} \t {col[1]}') # \t {col[2]}')
+            return False
+
+    def update_state(self, state, row_position, col_letter):
+        ## https://www.rapidtables.com/web/color/RGB_Color.html
+        if state == "subiendo" :
+            color_state = {"red": 1, "green":  0.85, "blue": 0.4} # yellow "subiendo"
+        if state == "pendiente" :
+            color_state = {"red": 1.0, "green": 0.9, "blue": 0.40} # yellow "pendiente"
+        if state == "revision" :
+            color_state = {"red":  0.57, "green": 0.76, "blue": 0.49} # low-green "revision"
+        if state == "OK" :
+            color_state = {"red": 0.0, "green": 1, "blue": 0.0} # green "OK"
+        if state == "rechazo" :
+            color_state = {"red": 1, "green": 0.01, "blue": 1} # magenta "rechazo "
+
+        self.worksheet.update(col_letter+str(row_position), state)
+        self.worksheet.format(col_letter+str(row_position), {"backgroundColor": color_state})
 
 
-if __name__ == '__main__':
-    sheet = "Copia_para_test_Subidas"
-    sheet_id = "1B2u8ahbrHLsARSwDU3DC3nik_rrnlO5K1nsBFx2HZ3o"
+    def record_filename(self, filename, sell_folder_path):
+        # if the file to sell doesn't exist on the sheet: record it.
+        self.sellfolder = str(os.path.normpath(sell_folder_path))
+        check = self.check_registred_file(filename)
+        # logging.debug(check)
+        if check is False:
+            last_row = len(self.worksheet.col_values(ord("D")-64))+1 # ord("D")-64 it's the numeric translation of "D" column
+            collection = Sell_folder(sellfolder_path=sell_folder_path).in_collection_subfolder()
+            ## I search for filename into collections.
+            old_collection = {}
+            new_collection = {}
+            for coll_key, file in collection.items():
+                # print(coll_key, file)
+                if filename in str(file):
+                    # TO-DO
+                    ## tomar el nombre actual antes de agregarle nada.
+                    ## insertarle el filename nuevo despues de los que existen.
+                    ## reeemplazar variable filename_record.
+                    old_collection.update({coll_key:[].append(filename)}) # TO-FIX no está sumando valores, los está pisando en cada iteracion .
+                    print('\n'+f'-------... ------ {old_collection} it is in collection ')
+                    # print(f'------------- {filename} it is in collection ')
+                    ## I change the name to record.
+                    filename_record = str(old_collection)
+                    # filename_record = f'{coll_key}: ({filename})'
+                    ## check filetype and write it in the 4th column.
+                    try:
+                        check_exist =  self.worksheet.find(re.compile(rf'{coll_key}'))
+                    except:
+                        check_exist = False
 
-    print(Control_sheet(sheet_id, sheet).list_rows('C4:E'))
+                    logging.debug(f'-.-.-.- {check_exist} antes de if ')
+
+                    if check_exist:
+                        # this_cell = self.worksheet.find(re.compile(rf'{coll_key}'))
+                        # current_row = len(self.worksheet.col_values(ord("D")-64))+1 # ord("D")-64 it's the numeric translation of "D" column
+                        print(f'-.-.-.- { check_exist.row}')
+                        self.worksheet.update("D" + str(check_exist.row), str(old_collection))
+                    else:
+                        # self.worksheet.update("D" + str(last_row), filename)
+                        pass
+
+            # if filename not in collection.values():
+            #     #     filename_record = filename
+            #     ## check filetype and write it in the 4th column.
+            #     logging.debug(f'*** { filename} not in collection *** ')
+            #     self.worksheet.update("D" + str(last_row), filename)
+
+            type_of_file = Sell_folder(sell_folder_path).type_file(filename)
+            self.worksheet.update("E"+str(last_row), type_of_file)
+            date = str(datetime.date.today()).replace('-', "/")
+            self.worksheet.update("B"+str(last_row), date)
+            # TO-DO: mandar a subir por FTP y marcar "subiendo" en todos los sitios.
+            self.update_state( "subiendo", last_row, "F") # TO-FIX hardcode letter of col
+            return f'{filename} will be included in the records of sheet'
+        else:
+            # logging.debug(f'\nthe file {filename} already exist in the sheet records at the row {check}')
+            return  'the file already exist in the sheet records'
+
+
+# if __name__ == '__main__':
+#     sheet_name = "Copia_para_test_Subidas"
+#     sheet_id = "1B2u8ahbrHLsARSwDU3DC3nik_rrnlO5K1nsBFx2HZ3o"
+#
+#     print(Control_sheet(sheet_id, sheet_name).list_cols('C4:E'))
