@@ -1,16 +1,23 @@
 import unittest
 from unittest.mock import patch
 from main import *
+import time, logging
+
+
+logging.basicConfig(level=logging.DEBUG)
+
 
 ## My configs
 sheet_name = "Copia_para_test_Subidas"
 sheet_id = "1B2u8ahbrHLsARSwDU3DC3nik_rrnlO5K1nsBFx2HZ3o"
+test_folder_path = r'C:/Users/Tato/PycharmProjects/autoSell_Images/falsaRutatest/_x_Vender'  # input('where is the sell folder? \n') or r'C:\TRABAJOS\Venta_stockfootage\_x_Vender'
 
 class Folder_sell_testcase(unittest.TestCase):
     @classmethod
     def setUpClass(self):
         # TO-FIX descomentar el input en path para produccion.
         self.path = r'C:/Users/Tato/PycharmProjects/autoSell_Images/falsaRutatest/_x_Vender' # input('where is the sell folder? \n') or r'C:\TRABAJOS\Venta_stockfootage\_x_Vender'
+        # self.folder = Sell_folder(r'C:\TRABAJOS\Venta_stockfootage\_x_Vender')
         self.folder = Sell_folder(self.path)
         self.folder_items_list = self.folder.get_items_list()
 
@@ -114,6 +121,41 @@ class Sheet_testing(Folder_sell_testcase):
             print(returned_action)
             self.assertIn(f, returned_action)
         # self.assertIn(file_name, returned_action)
+
+    def test_thumbnail_generation(self):
+        ## check if thumbnail exist or to be created.
+        self.ctrlsheet = Control_sheet(self.sheet_id, self.sheet_name)
+        test_folder = r'..//falsaRutatest/_x_Vender/4K/' # TO-FIX fix this hardcoded folder to take relative to where the files are.
+        sufixname = "_thumbn.jpg"
+        file_names_with_sufix_list = []
+        file_names_without_sufix_list = []
+        self.folder = Sell_folder(test_folder)
+        self.folder_items_list = self.folder.get_items_list()
+
+        # print(os.path.join(os.path.abspath(test_folder), file))
+        for original_file in self.folder.get_items_list():
+            # for thumb_file in temp_folder():
+            ## fill two list for do the check and call the method we are testing.
+            if sufixname not in original_file: #  and not os.path.exists(thumb_file):
+                self.ctrlsheet.thumbnail_generation(os.path.join(os.path.abspath(test_folder), original_file), sufixname)
+                file_names_without_sufix_list.append(original_file)
+                ## search in the new temp folder where thumbnails are.
+                self.thumb_tmp_folder = Sell_folder(temp_folder()).get_items_list()
+                for thumb in self.thumb_tmp_folder:
+                    if thumb not in file_names_with_sufix_list:
+                        file_names_with_sufix_list.append(thumb)
+
+        ## assert if every file has a file with thumbnail.
+        self.assertEqual(len(file_names_with_sufix_list), len(file_names_without_sufix_list))
+        ## remove temp files after assertion
+        time.sleep(1)
+        deletion = input("thumbnails files will be removed from temp folder\n do you want to cancel?\nPress N for cancel or press any key to proceed:\n") or None
+        if deletion in ['n', 'N']:
+            print('nothing will be deleted')
+        else:
+            logging.info('\nTemp folder and his content will be deleted after few seconds')
+            shutil.rmtree(temp_folder())
+
 
     @classmethod
     def tearDownClass(cls):

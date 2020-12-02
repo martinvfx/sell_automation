@@ -13,8 +13,8 @@
     #  logearme en google spreadsheets
     #  comprobar en la planilla que el archivo a subir no se haya subido ya manualmente.
     # anotar una nueva linea en spreadsheets con el nombre de archivo y tipo que está subiendose.
-# TO-DO: extraer imagen de muestra o thumbnail de video.
-# TO-DO: subir a spreadsheet imagen de muestra o thumbnail de video.
+    # extraer imagen de muestra o thumbnail de video.
+    # TO-DO: subir a spreadsheet imagen de muestra o thumbnail y despues borrarla del directorio local.
 # TO-DO: en spreadsheets  marcar sitios a los que está subiendose.
 # TO-DO: comprobar la subida ( completada en ftp, o por el sitio )
 # TO-DO: revisar si el sitio lo tiene registrado en pendientes de editar o rechazado por problemas de subida o archivo. Y marcar en spreadsheets.

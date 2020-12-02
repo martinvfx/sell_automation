@@ -4,8 +4,25 @@ from selenium import webdriver
 import logging
 import os, sys, json, ftplib, gspread
 import os.path
+import ffmpeg
+import tempfile
+
 
 logging.basicConfig(level=logging.DEBUG)
+
+def temp_folder():
+    # make a temp folder
+    new_temp_folder = os.path.join(tempfile.gettempdir(), "autoSellimg_temp")
+    if not os.path.exists(os.path.join(tempfile.gettempdir(), "autoSellimg_temp")):
+        try:
+            logging.info('\n-- temp folder will be created -- \n')
+            os.mkdir(new_temp_folder)
+            logging.info(f'System temp dir is {tempfile.gettempdir()}, and the new temp dir is on : {new_temp_folder}')
+        except:
+            logging.warning("\n!! Temp file can't be created! !! ")
+    # shutil.rmtree(new_temp_folder)
+    return new_temp_folder
+
 
 acepted_video_filetypes = [ type.lower() for type in ['mov', 'mp4', 'mpg', 'avi']]
 acepted_video_codec = [ type.lower() for type in [ 'ProRes', 'H.264', 'MPEG 2', 'MPEG 4', 'Motion', 'JPEG',  'PNG']] # 'MJPEG',
@@ -32,7 +49,7 @@ class Sell_folder():
         self.sellfolder = str(os.path.normpath(sellfolder_path))
 
     def get_items_list(self):
-        ## buscar los archivos de la carpeta de salida  "para vender" and in the inner subfolders.
+        ## Find the files in the output folder  "para vender" and in the nested subfolders.
         # self.sellfolder = str(os.path.normpath(input('where is the sell folder? \n') or r'C:\TRABAJOS\Venta_stockfootage\_x_Vender'))
         # self.sellfolder = str(os.path.normpath(sellfolder_path))
         items_in_folders = []
@@ -106,8 +123,9 @@ class Sell_folder():
         return video_type, photo_type, illustration_type, treeD_type, other_type
 
     def in_collection_subfolder(self):
-        ## find collections: they are sub folders with more than 2 files located into 4K, HD, 3D main folders. Photos are not taken as possible collection type.
-        container_collections = ["3D", "4K", "HD"]
+        ## find collections: they are sub folders with more than 2 files located into 4K, HD, 3D main folders.
+        # TO-DO Photos must be taken as possible collection type.
+        container_collections = ['Foto', "3D", "4K", "HD"]
         collections = {}
         for category in container_collections:
             with os.scandir(os.path.join(self.sellfolder, category)) as sellfolder_toplevel:
@@ -387,8 +405,37 @@ class Control_sheet():
             return  'the file already exist in the sheet records'
 
 
-# if __name__ == '__main__':
+    def thumbnail_generation(self, input_file, sufix):
+
+        ## take the original filename and make a picture thumbnail
+        # logging.debug(f'__ the input file is {input_file}')
+        sufixname = sufix or "_thumbn.jpg"
+        out_thumbnail_name = os.path.normpath(f"{os.path.splitext(input_file)[0]}{sufixname}")
+        ## check acepted graphic filetypes before start to do thumbnails.
+        if str(os.path.splitext(input_file)[1]).lower().replace('.', '') in (acepted_video_filetypes + acepted_photos_filetypes):
+            if  os.path.exists(out_thumbnail_name) is False and os.path.splitext(sufixname)[0] not in str(os.path.splitext(input_file)[0]):
+                (
+                    ffmpeg
+                        .input(input_file ) # ss=1 TO-DO find the middle of the duration and use that to set "ss=time" only if it's a video file.
+                        .filter('scale', 50, -1)
+                        .output(out_thumbnail_name, vframes=1)
+                        .run()
+                )
+        path_output_thumbnails = os.path.join(temp_folder(), os.path.basename(out_thumbnail_name))
+        logging.debug(f'__ the output file will be in {path_output_thumbnails}')
+
+        ## Move thumbnails to Temp directory
+        shutil.move(out_thumbnail_name, path_output_thumbnails )
+
+    def check_thumbnail_exist(self):
+        pass
+
+
+    # if __name__ == '__main__':
 #     sheet_name = "Copia_para_test_Subidas"
 #     sheet_id = "1B2u8ahbrHLsARSwDU3DC3nik_rrnlO5K1nsBFx2HZ3o"
 #
 #     print(Control_sheet(sheet_id, sheet_name).list_cols('C4:E'))
+
+# shutil.rmtree(new_temp_folder)
+
